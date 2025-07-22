@@ -105,7 +105,11 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
   };
 
   // lambda to create histogram title
-  auto title = [](const std::string& x, const std::string& y = "", const std::string& t = "") {
+  auto title = [](
+    const std::string& x,
+    const std::string& y = "",
+    const std::string& t = ""
+  ) {
     return t + ";" + x + ";" + y;
   };
 
@@ -116,8 +120,10 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
     TH1Def("hEnePar", title(axes[0].title).data(), axes[0].num, axes[0].start, axes[0].stop),
     TH1Def("hEneNuc", title(axes[0].title).data(), axes[0].num, axes[0].start, axes[0].stop),
     TH1Def("hEneFrac", title(axes[2].title).data(), axes[2].num, axes[2].start, axes[2].stop),
-    TH1Def("hXBjork", title(axes[3].title).data(), axes[3].num, axes[3].start, axes[3].stop),
-    TH1Def("hLogXBjork", title(axes[4].title).data(), axes[4].num, axes[4].start, axes[4].stop)
+    TH1Def("hXBRec", title(axes[3].title).data(), axes[3].num, axes[3].start, axes[3].stop),
+    TH1Def("hXBGen", title(axes[3].title).data(), axes[3].num, axes[3].start, axes[3].stop),
+    TH1Def("hLogXBRec", title(axes[4].title).data(), axes[4].num, axes[4].start, axes[4].stop),
+    TH1Def("hLogXBGen", title(axes[4].title).data(), axes[4].num, axes[4].start, axes[4].stop)
   };
   std::cout << "    Defined histograms" << std::endl;
 
@@ -143,18 +149,25 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
 
   auto analysis = frame.Filter(hasKine, {"InclusiveKinematicsElectron"})
                        .Filter(cutQ2, {"InclusiveKinematicsElectron"})
-                       .Define("xBjork", getXB, {"InclusiveKinematicsElectron"})
-                       .Define("logXBjork", logXB, {"xBjork"});
+                       .Define("xbRec", getXB, {"InclusiveKinematicsElectron"})
+                       .Define("lnxbRec", logXB, {"xbRec"})
+                       .Define("xbGen", getXB, {"InclusiveKinematicsTruth"})
+                       .Define("lnxbGen", logXB, {"xbGen"});
 
   // get histograms
-  auto hXBjork    = analysis.Histo1D(hists[5], "xBjork");
-  auto hLogXBjork = analysis.Histo1D(hists[6], "logXBjork");
+  auto hXBRec    = analysis.Histo1D(hists[5], "xbRec");
+  auto hXBGen    = analysis.Histo1D(hists[6], "xbGen");
+  auto hLogXBRec = analysis.Histo1D(hists[7], "lnxbRec");
+  auto hLogXBGen = analysis.Histo1D(hists[8], "lnxbGen");
 
   // save & close -------------------------------------------------------------
 
   // save histograms
-  output  -> cd();
-  hXBjork -> Write();
+  output    -> cd();
+  hXBRec    -> Write();
+  hXBGen    -> Write();
+  hLogXBRec -> Write();
+  hLogXBGen -> Write();
 
   // close files
   output -> cd();

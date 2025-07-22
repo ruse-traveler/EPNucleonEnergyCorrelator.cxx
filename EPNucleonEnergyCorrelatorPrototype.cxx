@@ -21,6 +21,7 @@
 #include <TH1.h>
 #include <TH2.h>
 // c++ utilities
+#include <cmath>
 #include <iostream>
 #include <vector>
 
@@ -43,8 +44,8 @@ struct Options {
 } DefaultOptions {
   "root://dtn-eic.jlab.org//volatile/eic/EPIC/RECO/25.06.1/epic_craterlake/DIS/NC/10x100/minQ2=10/pythia8NCDIS_10x100_minQ2=10_beamEffects_xAngle=-0.025_hiDiv_5.1287.eicrecon.edm4eic.root",
   "test.root",
-  19.5,
-  20.5,
+  0.0,
+  100.0,
   1.0
 };
 
@@ -99,7 +100,8 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
     {"E [GeV]", 200, 0., 200.},
     {"y = ln tan(#theta/2)", 200, -15, 5},
     {"E/E_{p}", 30, -1., 2.},
-    {"x_{B}", 60, -1., 2.}
+    {"x_{B}", 60, -1., 2.},
+    {"ln x_{B}", 100, -50., 50.}
   };
 
   // lambda to create histogram title
@@ -114,7 +116,8 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
     TH1Def("hEnePar", title(axes[0].title).data(), axes[0].num, axes[0].start, axes[0].stop),
     TH1Def("hEneNuc", title(axes[0].title).data(), axes[0].num, axes[0].start, axes[0].stop),
     TH1Def("hEneFrac", title(axes[2].title).data(), axes[2].num, axes[2].start, axes[2].stop),
-    TH1Def("hXBjork", title(axes[3].title).data(), axes[3].num, axes[3].start, axes[3].stop)
+    TH1Def("hXBjork", title(axes[3].title).data(), axes[3].num, axes[3].start, axes[3].stop),
+    TH1Def("hLogXBjork", title(axes[4].title).data(), axes[4].num, axes[4].start, axes[4].stop)
   };
   std::cout << "    Defined histograms" << std::endl;
 
@@ -129,17 +132,23 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
   };
 
   auto getXB = [](std::vector<edm4eic::InclusiveKinematicsData> kines) {
-    return kines.front().Q2;
+    return kines.front().x;
+  };
+
+  auto logXB = [](float xb) {
+    return std::log(xb);
   };
 
   // run analysis -------------------------------------------------------------
 
   auto analysis = frame.Filter(hasKine, {"InclusiveKinematicsElectron"})
                        .Filter(cutQ2, {"InclusiveKinematicsElectron"})
-                       .Define("xBjork", getXB, {"InclusiveKinematicsElectron"});
+                       .Define("xBjork", getXB, {"InclusiveKinematicsElectron"})
+                       .Define("logXBjork", logXB, {"xBjork"});
 
   // get histograms
-  auto hXBjork = analysis.Histo1D(hists[5], "xBjork");
+  auto hXBjork    = analysis.Histo1D(hists[5], "xBjork");
+  auto hLogXBjork = analysis.Histo1D(hists[6], "logXBjork");
 
   // save & close -------------------------------------------------------------
 

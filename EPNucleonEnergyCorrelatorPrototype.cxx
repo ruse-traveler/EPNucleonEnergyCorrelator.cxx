@@ -36,6 +36,10 @@ using TH2Def = ROOT::RDF::TH2DModel;
 // ============================================================================
 //! Struct to consolidate user options
 // ============================================================================
+/*! TODO add
+ *    - input reco particle collection (for charged vs. not)
+ *    - input gen particle collection (for charged vs. not)
+ */
 struct Options {
   std::string inFile;   //!< input file
   std::string outFile;  //!< output file
@@ -98,20 +102,23 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
 
   // binning definitions
   std::map<std::string, Axis> axes = {
-    {"ene", {"E [GeV]", 200, 0., 200.}},
-    {"rap", {"y = ln tan(#theta/2)", 200, -15, 5}},
-    {"weight", {"E/E_{p}", 30, -1., 2.}},
-    {"x", {"x_{B}", 60, -1., 2.}},
-    {"lnx", {"ln x_{B}", 100, -50., 50.}}
+    {"ene", {"E [GeV]", 201, -1., 200.}},
+    {"rap", {"y = ln tan(#theta/2)", 200, -15., 5.}},
+    {"weight", {"E/E_{p}", 21, -0.1, 2.}},
+    {"x", {"x_{B}", 21, -0.1, 2.}},
+    {"lnx", {"ln x_{B}", 300, -20., 10.}},
+    {"q", {"Q^{2} [GeV/c]^{2}", 101, -10., 1000}},
+    {"lnq", {"ln Q^{2}", 51, -1., 50.}}
   };
 
   // lambda to create histogram title
   auto makeTitle = [](
     const std::string& x,
     const std::string& y = "",
+    const std::string& z = "",
     const std::string& t = ""
   ) {
-    return t + ";" + x + ";" + y;
+    return t + ";" + x + ";" + y + ";" + z;
   };
 
   // lambda to create a 1d histogram
@@ -123,38 +130,94 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
   ) {
     return TH1Def(
       name.data(),
-      makeTitle(axes[axis].title, title, ytitle).data(),
+      makeTitle(axes[axis].title, ytitle, "", title).data(),
       axes[axis].num,
       axes[axis].start,
       axes[axis].stop
     );
   };
 
-  // define 1D histograms
-  std::map<std::string, TH1Def> hists = {
-    {"nec", makeHist1D("rap", "hNEC", "#GTNEC#LT")},
-    {"ypar", makeHist1D("rap", "hRapPar")},
-    {"epar", makeHist1D("ene", "hEnePar")},
-    {"enuc", makeHist1D("ene", "hEneNuc")},
+  // lambda to create a 2d histogram
+  auto makeHist2D = [&axes, &makeTitle](
+    const std::string& xaxis,
+    const std::string& yaxis,
+    const std::string& name,
+    const std::string& ztitle = "",
+    const std::string& title = ""
+  ) {
+    return TH2Def(
+      name.data(),
+      makeTitle(axes[xaxis].title, axes[yaxis].title, ztitle, title).data(),
+      axes[xaxis].num,
+      axes[xaxis].start,
+      axes[xaxis].stop,
+      axes[yaxis].num,
+      axes[yaxis].start,
+      axes[yaxis].stop
+    );
+  };
+
+  // define 1d histograms
+  //   - TODO add
+  //       - lab rapidity (rec, gen)
+  //       - breit angle (rec, gen)
+  std::map<std::string, TH1Def> hist1D = {
+    {"necrec", makeHist1D("rap", "hNECRec", "#GTNEC#LT")},
+    {"necgen", makeHist1D("rap", "hNECGen", "#GTNEC#LT")},
+    {"yparrec", makeHist1D("rap", "hRapParRec")},
+    {"ypargen", makeHist1D("rap", "hRapParGen")},
+    {"eparrec", makeHist1D("ene", "hEneParRec")},
+    {"epargen", makeHist1D("ene", "hEneParGen")},
+    {"enucrec", makeHist1D("ene", "hEneNucRec")},
+    {"enucgen", makeHist1D("ene", "hEneNucGen")},
     {"weight", makeHist1D("weight", "hEneFrac")},
     {"xrec", makeHist1D("x", "hXBRec")},
     {"xgen", makeHist1D("x", "hXBGen")},
     {"lnxrec", makeHist1D("lnx", "hLogXBRec")},
-    {"lnxgen", makeHist1D("lnx", "hLogXBGen")}
+    {"lnxgen", makeHist1D("lnx", "hLogXBGen")},
+    {"qrec", makeHist1D("q", "hQ2Rec")},
+    {"qgen", makeHist1D("q", "hQ2Gen")},
+    {"lnqrec", makeHist1D("lnq", "hLogQ2Rec")},
+    {"lnqgen", makeHist1D("lnq", "hLogQ2Gen")}
+  };
+
+  // define 2d histograms
+  //   - TODO add
+  //       - nec vs. q2 (rec, gen)
+  //       - lab vs. breit rapidity (rec, gen)
+  //       - breit angle vs. rapidity (rec, gen)
+  std::map<std::string, TH2Def> hist2D = {
+    {"xrecXgen", makeHist2D("x", "x", "hXBRecVsGen")},
+    {"lnxrecXgen", makeHist2D("lnx", "lnx", "hLogXBRecVsGen")},
+    {"qrecXgen", makeHist2D("q", "q", "hQ2RecVsGen")},
+    {"lnqrecXgen", makeHist2D("lnq", "lnq", "hLogQ2RecVsGen")}
   };
   std::cout << "    Defined histograms" << std::endl;
 
   // lambdas for analysis -----------------------------------------------------
+
+  // TODO define
+  //   - check if reco particles is empty
+  //   - check if gen particles is empty
+  //   - calculate breit frame angle
+  //   - calculate breit rapidity
+  //   - calculate lab rapidity
+  //   - calculate nec
 
   // check if inclusive kinematic collection is present
   auto hasKine = [](std::vector<edm4eic::InclusiveKinematicsData> kines) {
     return !kines.empty();
   };
 
-  // grab Q2 from an inclusive kinematics
-  auto cutQ2 = [&opt](std::vector<edm4eic::InclusiveKinematicsData> kines) {
-    return ((kines.front().Q2 > opt.minQ2) && (kines.front().Q2 < opt.maxQ2));
+  // check if Q2 is in specified cuts 
+  auto cutQ2 = [&opt](const float q2) {
+    return ((q2 > opt.minQ2) && (q2 < opt.maxQ2));
   };
+
+  // grab Q2 from an inclusive kinematics
+  auto getQ2 = [](std::vector<edm4eic::InclusiveKinematicsData> kines) {
+    return kines.front().Q2;
+  }; 
 
   // grab xb from an inclusive kinematics
   auto getXB = [](std::vector<edm4eic::InclusiveKinematicsData> kines) {
@@ -162,33 +225,55 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
   };
 
   // take log of a number
-  auto logXB = [](float xb) {
-    return std::log(xb);
+  auto doLog = [](const float num) {
+    return std::log(num);
   };
 
   // run analysis -------------------------------------------------------------
 
   auto analysis = frame.Filter(hasKine, {"InclusiveKinematicsElectron"})
-                       .Filter(cutQ2, {"InclusiveKinematicsElectron"})
+                       .Define("q2Rec", getQ2, {"InclusiveKinematicsElectron"})
+                       .Define("q2Gen", getQ2, {"InclusiveKinematicsTruth"})
+                       .Define("lnQ2Rec", doLog, {"q2Rec"})
+                       .Define("lnQ2Gen", doLog, {"q2Gen"})
+                       .Filter(cutQ2, {"q2Rec"})
                        .Define("xbRec", getXB, {"InclusiveKinematicsElectron"})
-                       .Define("lnxbRec", logXB, {"xbRec"})
                        .Define("xbGen", getXB, {"InclusiveKinematicsTruth"})
-                       .Define("lnxbGen", logXB, {"xbGen"});
+                       .Define("lnXBRec", doLog, {"xbRec"})
+                       .Define("lnXBGen", doLog, {"xbGen"});
 
-  // get histograms
-  auto hXBRec    = analysis.Histo1D(hists["xrec"], "xbRec");
-  auto hXBGen    = analysis.Histo1D(hists["xgen"], "xbGen");
-  auto hLogXBRec = analysis.Histo1D(hists["lnxrec"], "lnxbRec");
-  auto hLogXBGen = analysis.Histo1D(hists["lnxgen"], "lnxbGen");
+  // get 1d histograms
+  auto hXBRec    = analysis.Histo1D(hist1D["xrec"], "xbRec");
+  auto hXBGen    = analysis.Histo1D(hist1D["xgen"], "xbGen");
+  auto hLogXBRec = analysis.Histo1D(hist1D["lnxrec"], "lnXBRec");
+  auto hLogXBGen = analysis.Histo1D(hist1D["lnxgen"], "lnXBGen");
+  auto hQ2Rec    = analysis.Histo1D(hist1D["qrec"], "q2Rec");
+  auto hQ2Gen    = analysis.Histo1D(hist1D["qgen"], "q2Gen");
+  auto hLogQ2Rec = analysis.Histo1D(hist1D["lnqrec"], "lnQ2Rec");
+  auto hLogQ2Gen = analysis.Histo1D(hist1D["lnqgen"], "lnQ2Gen");
+
+  // get 2d histograms
+  auto hXBRecVsGen    = analysis.Histo2D(hist2D["xrecXgen"], "xbGen", "xbRec");
+  auto hLogXBRecVsGen = analysis.Histo2D(hist2D["lnxrecXgen"], "lnXBGen", "lnXBRec");
+  auto hQ2RecVsGen    = analysis.Histo2D(hist2D["qrecXgen"], "q2Gen", "q2Rec");
+  auto hLogQ2RecVsGen = analysis.Histo2D(hist2D["lnqrecXgen"], "lnQ2Gen", "lnQ2Rec");
 
   // save & close -------------------------------------------------------------
 
   // save histograms
-  output    -> cd();
-  hXBRec    -> Write();
-  hXBGen    -> Write();
-  hLogXBRec -> Write();
-  hLogXBGen -> Write();
+  output         -> cd();
+  hXBRec         -> Write();
+  hXBGen         -> Write();
+  hLogXBRec      -> Write();
+  hLogXBGen      -> Write();
+  hQ2Rec         -> Write();
+  hQ2Gen         -> Write();
+  hLogQ2Rec      -> Write();
+  hLogQ2Gen      -> Write();
+  hXBRecVsGen    -> Write();
+  hLogXBRecVsGen -> Write();
+  hQ2RecVsGen    -> Write();
+  hLogQ2RecVsGen -> Write();
 
   // close files
   output -> cd();

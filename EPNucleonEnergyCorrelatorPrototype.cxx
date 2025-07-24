@@ -23,6 +23,7 @@
 // c++ utilities
 #include <cmath>
 #include <iostream>
+#include <map>
 #include <vector>
 
 // alias for convenience
@@ -96,12 +97,12 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
   // define histograms --------------------------------------------------------
 
   // binning definitions
-  std::vector<Axis> axes = {
-    {"E [GeV]", 200, 0., 200.},
-    {"y = ln tan(#theta/2)", 200, -15, 5},
-    {"E/E_{p}", 30, -1., 2.},
-    {"x_{B}", 60, -1., 2.},
-    {"ln x_{B}", 100, -50., 50.}
+  std::map<std::string, Axis> axes = {
+    {"ene", {"E [GeV]", 200, 0., 200.}},
+    {"rap", {"y = ln tan(#theta/2)", 200, -15, 5}},
+    {"weight", {"E/E_{p}", 30, -1., 2.}},
+    {"x", {"x_{B}", 60, -1., 2.}},
+    {"lnx", {"ln x_{B}", 100, -50., 50.}}
   };
 
   // lambda to create histogram title
@@ -115,7 +116,7 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
 
   // lambda to create a 1d histogram
   auto makeHist1D = [&axes, &makeTitle](
-    const std::size_t axis,
+    const std::string& axis,
     const std::string& name,
     const std::string& ytitle = "",
     const std::string& title = ""
@@ -130,16 +131,16 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
   };
 
   // define 1D histograms
-  std::vector<TH1Def> hists = {
-    makeHist1D(1, "hNEC", "#GTNEC#LT"),
-    makeHist1D(1, "hRapPar"),
-    makeHist1D(0, "hEnePar"),
-    makeHist1D(0, "hEneNuc"),
-    makeHist1D(2, "hEneFrac"),
-    makeHist1D(3, "hXBRec"),
-    makeHist1D(3, "hXBGen"),
-    makeHist1D(4, "hLogXBRec"),
-    makeHist1D(4, "hLogXBGen")
+  std::map<std::string, TH1Def> hists = {
+    {"nec", makeHist1D("rap", "hNEC", "#GTNEC#LT")},
+    {"ypar", makeHist1D("rap", "hRapPar")},
+    {"epar", makeHist1D("ene", "hEnePar")},
+    {"enuc", makeHist1D("ene", "hEneNuc")},
+    {"weight", makeHist1D("weight", "hEneFrac")},
+    {"xrec", makeHist1D("x", "hXBRec")},
+    {"xgen", makeHist1D("x", "hXBGen")},
+    {"lnxrec", makeHist1D("lnx", "hLogXBRec")},
+    {"lnxgen", makeHist1D("lnx", "hLogXBGen")}
   };
   std::cout << "    Defined histograms" << std::endl;
 
@@ -175,10 +176,10 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
                        .Define("lnxbGen", logXB, {"xbGen"});
 
   // get histograms
-  auto hXBRec    = analysis.Histo1D(hists[5], "xbRec");
-  auto hXBGen    = analysis.Histo1D(hists[6], "xbGen");
-  auto hLogXBRec = analysis.Histo1D(hists[7], "lnxbRec");
-  auto hLogXBGen = analysis.Histo1D(hists[8], "lnxbGen");
+  auto hXBRec    = analysis.Histo1D(hists["xrec"], "xbRec");
+  auto hXBGen    = analysis.Histo1D(hists["xgen"], "xbGen");
+  auto hLogXBRec = analysis.Histo1D(hists["lnxrec"], "lnxbRec");
+  auto hLogXBGen = analysis.Histo1D(hists["lnxgen"], "lnxbGen");
 
   // save & close -------------------------------------------------------------
 

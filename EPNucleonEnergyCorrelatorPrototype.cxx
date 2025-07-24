@@ -105,7 +105,7 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
   };
 
   // lambda to create histogram title
-  auto title = [](
+  auto makeTitle = [](
     const std::string& x,
     const std::string& y = "",
     const std::string& t = ""
@@ -113,34 +113,54 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
     return t + ";" + x + ";" + y;
   };
 
-  // define histograms
+  // lambda to create a 1d histogram
+  auto makeHist1D = [&axes, &makeTitle](
+    const std::size_t axis,
+    const std::string& name,
+    const std::string& ytitle = "",
+    const std::string& title = ""
+  ) {
+    return TH1Def(
+      name.data(),
+      makeTitle(axes[axis].title, title, ytitle).data(),
+      axes[axis].num,
+      axes[axis].start,
+      axes[axis].stop
+    );
+  };
+
+  // define 1D histograms
   std::vector<TH1Def> hists = {
-    TH1Def("hNEC", title(axes[1].title, "#GTNEC#LT").data(), axes[1].num, axes[1].start, axes[2].stop),
-    TH1Def("hRapPar", title(axes[1].title).data(), axes[1].num, axes[1].start, axes[1].stop),
-    TH1Def("hEnePar", title(axes[0].title).data(), axes[0].num, axes[0].start, axes[0].stop),
-    TH1Def("hEneNuc", title(axes[0].title).data(), axes[0].num, axes[0].start, axes[0].stop),
-    TH1Def("hEneFrac", title(axes[2].title).data(), axes[2].num, axes[2].start, axes[2].stop),
-    TH1Def("hXBRec", title(axes[3].title).data(), axes[3].num, axes[3].start, axes[3].stop),
-    TH1Def("hXBGen", title(axes[3].title).data(), axes[3].num, axes[3].start, axes[3].stop),
-    TH1Def("hLogXBRec", title(axes[4].title).data(), axes[4].num, axes[4].start, axes[4].stop),
-    TH1Def("hLogXBGen", title(axes[4].title).data(), axes[4].num, axes[4].start, axes[4].stop)
+    makeHist1D(1, "hNEC", "#GTNEC#LT"),
+    makeHist1D(1, "hRapPar"),
+    makeHist1D(0, "hEnePar"),
+    makeHist1D(0, "hEneNuc"),
+    makeHist1D(2, "hEneFrac"),
+    makeHist1D(3, "hXBRec"),
+    makeHist1D(3, "hXBGen"),
+    makeHist1D(4, "hLogXBRec"),
+    makeHist1D(4, "hLogXBGen")
   };
   std::cout << "    Defined histograms" << std::endl;
 
   // lambdas for analysis -----------------------------------------------------
 
+  // check if inclusive kinematic collection is present
   auto hasKine = [](std::vector<edm4eic::InclusiveKinematicsData> kines) {
     return !kines.empty();
   };
 
+  // grab Q2 from an inclusive kinematics
   auto cutQ2 = [&opt](std::vector<edm4eic::InclusiveKinematicsData> kines) {
     return ((kines.front().Q2 > opt.minQ2) && (kines.front().Q2 < opt.maxQ2));
   };
 
+  // grab xb from an inclusive kinematics
   auto getXB = [](std::vector<edm4eic::InclusiveKinematicsData> kines) {
     return kines.front().x;
   };
 
+  // take log of a number
   auto logXB = [](float xb) {
     return std::log(xb);
   };

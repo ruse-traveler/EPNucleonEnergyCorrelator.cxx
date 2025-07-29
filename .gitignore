@@ -1,2 +1,5 @@
+*.png
 *.root
+output/
+input/
 ref/

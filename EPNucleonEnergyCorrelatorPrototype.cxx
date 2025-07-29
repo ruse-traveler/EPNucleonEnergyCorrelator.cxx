@@ -49,7 +49,7 @@ struct Options {
   double      maxQ2;    //!< max Q2 to analyze
   double      nPow;     //!< power to raise xb to
 } DefaultOptions {
-  "test.root",
+  "testRunWithNEC.epic25061ncdis10x100minq10.d29m7y2025.root",
   "root://dtn-eic.jlab.org//volatile/eic/EPIC/RECO/25.06.1/epic_craterlake/DIS/NC/10x100/minQ2=10/pythia8NCDIS_10x100_minQ2=10_beamEffects_xAngle=-0.025_hiDiv_5.1287.eicrecon.edm4eic.root",
   "ReconstructedBreitFrameParticles",
   "GeneratedBreitFrameParticles",
@@ -162,12 +162,14 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
     );
   };
 
-  // define 1d histograms
+  // define 1d histograms/profiles
   //   - TODO add
   //       - lab rapidity (rec, gen)
   std::map<std::string, TH1Def> hist1D = {
-    {"necrec", makeHist1D("rap", "hNECRec", "#GTNEC#LT")},
-    {"necgen", makeHist1D("rap", "hNECGen", "#GTNEC#LT")},
+    {"necXyrec", makeHist1D("rap", "hNECVsRapRec", "#LTNEC#GT")},
+    {"necXygen", makeHist1D("rap", "hNECVsRapGen", "#LTNEC#GT")},
+    {"necXthrec", makeHist1D("ang", "hNECVsThetaRec", "#LTNEC#GT")},
+    {"necXthgen", makeHist1D("ang", "hNECVsThetaGen", "#LTNEC#GT")},
     {"thparrec", makeHist1D("ang", "hThetaParRec")},
     {"thpargen", makeHist1D("ang", "hThetaParGen")},
     {"yparrec", makeHist1D("rap", "hRapParRec")},
@@ -187,7 +189,7 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
     {"lnqgen", makeHist1D("lnq", "hLogQ2Gen")}
   };
 
-  // define 2d histograms
+  // define 2d histograms/profiles
   //   - TODO add
   //       - nec vs. q2 (rec, gen)
   //       - lab vs. breit rapidity (rec, gen)
@@ -203,10 +205,7 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
   // lambdas for analysis -----------------------------------------------------
 
   // TODO define
-  //   - check if reco particles is empty
-  //   - check if gen particles is empty
-  //   - calculate breit frame angle
-  //   - calculate breit rapidity
+  //   - exclude DIS electron
   //   - calculate lab rapidity
   //   - calculate nec
 
@@ -240,6 +239,17 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
     return std::log(num);
   };
 
+  // extract particle energies
+  //   - TODO merge with get breit/rapidity lambdas
+  //     below
+  auto getEnergies = [](const std::vector<edm4eic::ReconstructedParticleData>& pars) {
+    std::vector<float> energies;
+    for (const auto& par : pars) {
+      energies.push_back(par.energy);
+    }
+    return energies;
+  };
+
   // extract particle breit angle
   //   - n.b. by definition, the beam is at z = 0 in the breit frame
   //   - TODO expand this to extract additional information
@@ -268,6 +278,18 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
     return raps;
   };
 
+  // calculate weights (energy fractions)
+  //   - FIXME beam 4-momentum should be extracted from
+  //     kinematics
+  //   - TODO allow for raising weight to power
+  auto getWeights = [](const std::vector<float>& energies) {
+    std::vector<float> weights;
+    for (const float energy : energies) {
+      weights.push_back(energy / 100.);  // FIXME this is hacky!!
+    }
+    return weights;
+  };
+
   // run analysis -------------------------------------------------------------
 
   auto analysis = frame.Filter(hasKine, {"InclusiveKinematicsElectron"})
@@ -282,24 +304,32 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
                        .Define("xbGen", getXB, {"InclusiveKinematicsTruth"})
                        .Define("lnXBRec", doLog, {"xbRec"})
                        .Define("lnXBGen", doLog, {"xbGen"})
+                       .Define("eRec", getEnergies, {opt.recPars})
+                       .Define("eGen", getEnergies, {opt.genPars})
+                       .Define("wRec", getWeights, {"eRec"})
+                       .Define("wGen", getWeights, {"eGen"})
                        .Define("thRec", getBreitAngles, {opt.recPars})
                        .Define("thGen", getBreitAngles, {opt.genPars})
                        .Define("yRec", getRapidity, {"thRec"})
                        .Define("yGen", getRapidity, {"thGen"});
 
   // get 1d histograms
-  auto hXBRec       = analysis.Histo1D(hist1D["xrec"], "xbRec");
-  auto hXBGen       = analysis.Histo1D(hist1D["xgen"], "xbGen");
-  auto hLogXBRec    = analysis.Histo1D(hist1D["lnxrec"], "lnXBRec");
-  auto hLogXBGen    = analysis.Histo1D(hist1D["lnxgen"], "lnXBGen");
-  auto hQ2Rec       = analysis.Histo1D(hist1D["qrec"], "q2Rec");
-  auto hQ2Gen       = analysis.Histo1D(hist1D["qgen"], "q2Gen");
-  auto hLogQ2Rec    = analysis.Histo1D(hist1D["lnqrec"], "lnQ2Rec");
-  auto hLogQ2Gen    = analysis.Histo1D(hist1D["lnqgen"], "lnQ2Gen");
-  auto hThetaParRec = analysis.Histo1D(hist1D["thparrec"], "thRec");
-  auto hThetaParGen = analysis.Histo1D(hist1D["thpargen"], "thGen");
-  auto hRapParRec   = analysis.Histo1D(hist1D["yparrec"], "yRec");
-  auto hRapParGen   = analysis.Histo1D(hist1D["ypargen"], "yGen");
+  auto hXBRec         = analysis.Histo1D(hist1D["xrec"], "xbRec");
+  auto hXBGen         = analysis.Histo1D(hist1D["xgen"], "xbGen");
+  auto hLogXBRec      = analysis.Histo1D(hist1D["lnxrec"], "lnXBRec");
+  auto hLogXBGen      = analysis.Histo1D(hist1D["lnxgen"], "lnXBGen");
+  auto hQ2Rec         = analysis.Histo1D(hist1D["qrec"], "q2Rec");
+  auto hQ2Gen         = analysis.Histo1D(hist1D["qgen"], "q2Gen");
+  auto hLogQ2Rec      = analysis.Histo1D(hist1D["lnqrec"], "lnQ2Rec");
+  auto hLogQ2Gen      = analysis.Histo1D(hist1D["lnqgen"], "lnQ2Gen");
+  auto hThetaParRec   = analysis.Histo1D(hist1D["thparrec"], "thRec");
+  auto hThetaParGen   = analysis.Histo1D(hist1D["thpargen"], "thGen");
+  auto hRapParRec     = analysis.Histo1D(hist1D["yparrec"], "yRec");
+  auto hRapParGen     = analysis.Histo1D(hist1D["ypargen"], "yGen");
+  auto hNECVsRapRec   = analysis.Histo1D(hist1D["necXyrec"], "yRec", "wRec");
+  auto hNECVsRapGen   = analysis.Histo1D(hist1D["necXygen"], "yGen", "wGen");
+  auto hNECVsThetaRec = analysis.Histo1D(hist1D["necXthrec"], "thRec", "wRec");
+  auto hNECVsThetaGen = analysis.Histo1D(hist1D["necXthgen"], "thGen", "wGen");
 
   // get 2d histograms
   auto hXBRecVsGen    = analysis.Histo2D(hist2D["xrecXgen"], "xbGen", "xbRec");
@@ -327,6 +357,10 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
   hThetaParGen   -> Write();
   hRapParRec     -> Write();
   hRapParGen     -> Write();
+  hNECVsRapRec   -> Write();
+  hNECVsRapGen   -> Write();
+  hNECVsThetaRec -> Write();
+  hNECVsThetaGen -> Write();
 
   // close files
   output -> cd();

@@ -36,10 +36,6 @@ using TH2Def = ROOT::RDF::TH2DModel;
 // ============================================================================
 //! Struct to consolidate user options
 // ============================================================================
-/*! TODO add
- *    - input reco particle collection (for charged vs. not)
- *    - input gen particle collection (for charged vs. not)
- */
 struct Options {
   std::string outFile;  //!< output file
   std::string inFile;   //!< input file
@@ -282,10 +278,10 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
   //   - FIXME beam 4-momentum should be extracted from
   //     kinematics
   //   - TODO allow for raising weight to power
-  auto getWeights = [](const std::vector<float>& energies) {
+  auto getWeights = [](const std::vector<float>& energies, const float xb) {
     std::vector<float> weights;
     for (const float energy : energies) {
-      weights.push_back(energy / 100.);  // FIXME this is hacky!!
+      weights.push_back(xb * (energy / 100.));  // FIXME this is hacky!!
     }
     return weights;
   };
@@ -306,8 +302,8 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
                        .Define("lnXBGen", doLog, {"xbGen"})
                        .Define("eRec", getEnergies, {opt.recPars})
                        .Define("eGen", getEnergies, {opt.genPars})
-                       .Define("wRec", getWeights, {"eRec"})
-                       .Define("wGen", getWeights, {"eGen"})
+                       .Define("wRec", getWeights, {"eRec", "xbRec"})
+                       .Define("wGen", getWeights, {"eGen", "xbGen"})
                        .Define("thRec", getBreitAngles, {opt.recPars})
                        .Define("thGen", getBreitAngles, {opt.genPars})
                        .Define("yRec", getRapidity, {"thRec"})

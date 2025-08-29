@@ -20,6 +20,7 @@
 #include <TFile.h>
 #include <TH1.h>
 #include <TH2.h>
+#include <TSystem.h>
 // c++ utilities
 #include <cmath>
 #include <iostream>
@@ -37,18 +38,22 @@ using TH2Def = ROOT::RDF::TH2DModel;
 //! Struct to consolidate user options
 // ============================================================================
 struct Options {
-  std::string outFile;  //!< output file
-  std::string inFile;   //!< input file
-  std::string recPars;  //!< input reconstructed particles
-  std::string genPars;  //!< input generated particles
-  double      minQ2;    //!< min Q2 to analyze
-  double      maxQ2;    //!< max Q2 to analyze
-  double      nPow;     //!< power to raise xb to
+  std::string outFile;    //!< output file
+  std::string inFile;     //!< input file
+  std::string recParsBF;  //!< input reconstructed particles in breit frame
+  std::string genParsBF;  //!< input generated particles in breit frame
+  std::string recParsL;   //!< input reconstructed particles in lab frame
+  std::string genParsL;   //!< input generated particles in lab frame
+  double      minQ2;      //!< min Q2 to analyze
+  double      maxQ2;      //!< max Q2 to analyze
+  double      nPow;       //!< power to raise xb to
 } DefaultOptions {
-  "testRunWithNEC.epic25061ncdis10x100minq10.d29m7y2025.root",
+  "dev.epic25061ncdis10x100minq10.root",
   "root://dtn-eic.jlab.org//volatile/eic/EPIC/RECO/25.06.1/epic_craterlake/DIS/NC/10x100/minQ2=10/pythia8NCDIS_10x100_minQ2=10_beamEffects_xAngle=-0.025_hiDiv_5.1287.eicrecon.edm4eic.root",
   "ReconstructedBreitFrameParticles",
   "GeneratedBreitFrameParticles",
+  "ReconstructedParticles",
+  "GeneratedParticles",
   0.0,
   100.0,
   1.0
@@ -61,9 +66,30 @@ struct Options {
 // ============================================================================
 struct Axis {
   std::string title;  //!< title of axis
-  std::size_t num;  //!< no. of bins
+  std::size_t num;    //!< no. of bins
   double      start;  //!< low edge of bin 1
   double      stop;   //!< low edge of bin num+1
+};
+
+
+
+// ============================================================================
+//! Helper struct to consolidate particle information
+// ============================================================================
+struct Particle {
+  double weight  = -999.;  //!< calculated NEC weight
+  double ebreit  = -999.;  //!< energy in breit frame
+  double pxbreit = -999.;  //!< px in breit frame
+  double pybreit = -999.;  //!< py in breit frame
+  double pzbreit = -999.;  //!< pz in breit frame
+  double elab    = -999.;  //!< energy in lab frame
+  double pxlab   = -999.;  //!< px in lab frame
+  double pylab   = -999.;  //!< py in lab frame
+  double pzlab   = -999.;  //!< pz in lab frame
+  double thbreit = -999.;  //!< polar theta in breit frame
+  double thlab   = -999.;  //!< polar theta in lab frame
+  double ybreit  = -999.;  //!< rapidity in breit frame
+  double ylab    = -999.;  //!< rapidity in lab frame
 };
 
 
@@ -235,6 +261,38 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
     return std::log(num);
   };
 
+  // extract particle info
+  auto getParInfo = [](
+    const float xb,
+    const std::vector<edm4eic::ReconstructedParticleData>& breits,
+    const std::vector<edm4eic::ReconstructedParticleData>& labs
+  ) {
+    std::vector<Particle> pars;
+    for (const auto& breit : breits) {
+
+      /* TODO follow relation back to lab frame */
+
+      // calculate theta, rapidity
+      const double thbreit = edm4hep::utils::anglePolar(
+        edm4hep::Vector3f(breit.momentum.x, breit.momentum.y, breit.momentum.z)
+      );
+      const double ybreit = std::log(std::tan(thbreit/2));
+
+      // fill info struct
+      pars.push_back(        {
+          .weight  = xb * (breit.energy / 100.),  // FIXME this is hacky!!
+          .ebreit  = breit.energy,
+          .pxbreit = breit.momentum.x,
+          .pybreit = breit.momentum.y,
+          .pzbreit = breit.momentum.z,
+          .thbreit = thbreit,
+          .ybreit  = ybreit
+        }
+      );
+    }
+    return pars;
+  };
+
   // extract particle energies
   //   - TODO merge with get breit/rapidity lambdas
   //     below
@@ -289,8 +347,10 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
   // run analysis -------------------------------------------------------------
 
   auto analysis = frame.Filter(hasKine, {"InclusiveKinematicsElectron"})
-                       .Filter(hasPars, {opt.recPars})
-                       .Filter(hasPars, {opt.genPars})
+                       .Filter(hasPars, {opt.recParsBF})
+                       .Filter(hasPars, {opt.genParsBF})
+                       .Filter(hasPars, {opt.recParsL})
+                       .Filter(hasPars, {opt.genParsL})
                        .Define("q2Rec", getQ2, {"InclusiveKinematicsElectron"})
                        .Define("q2Gen", getQ2, {"InclusiveKinematicsTruth"})
                        .Define("lnQ2Rec", doLog, {"q2Rec"})
@@ -300,14 +360,16 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
                        .Define("xbGen", getXB, {"InclusiveKinematicsTruth"})
                        .Define("lnXBRec", doLog, {"xbRec"})
                        .Define("lnXBGen", doLog, {"xbGen"})
-                       .Define("eRec", getEnergies, {opt.recPars})
-                       .Define("eGen", getEnergies, {opt.genPars})
+                       .Define("eRec", getEnergies, {opt.recParsBF})
+                       .Define("eGen", getEnergies, {opt.genParsBF})
                        .Define("wRec", getWeights, {"eRec", "xbRec"})
                        .Define("wGen", getWeights, {"eGen", "xbGen"})
-                       .Define("thRec", getBreitAngles, {opt.recPars})
-                       .Define("thGen", getBreitAngles, {opt.genPars})
+                       .Define("thRec", getBreitAngles, {opt.recParsBF})
+                       .Define("thGen", getBreitAngles, {opt.genParsBF})
                        .Define("yRec", getRapidity, {"thRec"})
-                       .Define("yGen", getRapidity, {"thGen"});
+                       .Define("yGen", getRapidity, {"thGen"})
+                       .Define("rpars", getParInfo, {"xbRec", opt.recParsBF, opt.recParsL})
+                       .Define("gpars", getParInfo, {"xbGen", opt.genParsBF, opt.genParsL});
 
   // get 1d histograms
   auto hXBRec         = analysis.Histo1D(hist1D["xrec"], "xbRec");
@@ -334,6 +396,10 @@ void EPNucleonEnergyCorrelatorPrototype(const Options& opt = DefaultOptions) {
   auto hLogQ2RecVsGen = analysis.Histo2D(hist2D["lnqrecXgen"], "lnQ2Gen", "lnQ2Rec");
 
   // save & close -------------------------------------------------------------
+
+  // snapshot info structs for downstream analysis
+  //   -- FIXME this doesn't work yet
+  //analysis.Snapshot("Particles", opt.outFile, {"rpars", "gpars"});
 
   // save histograms
   output         -> cd();
